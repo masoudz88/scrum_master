@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from jira import JIRA
 
+load_dotenv()
+
 class JiraScrum:
     def __init__(self):
         # Load environment variables
@@ -240,6 +242,79 @@ class JiraScrum:
                 print(f"Error creating issue: {str(e)}", file=sys.stderr)
                 traceback.print_exc(file=sys.stderr)
                 return {"error": str(e)}
+            
+        @self.mcp.tool()
+        async def update_issue(
+            issue_key: str,
+            summary: Optional[str] = None,
+            description: Optional[str] = None,
+            priority: Optional[str] = None,
+            assignee: Optional[str] = None,
+            labels: Optional[List[str]] = None,
+            story_points: Optional[float] = None,
+            custom_fields: Optional[Dict[str, Any]] = None
+        ) -> Dict[str, Any]:
+            """
+            Update an existing Jira issue with provided fields.
+            
+            Args:
+                issue_key: The Jira issue key (e.g., 'PROJ-123')
+                summary: New summary for the issue (optional)
+                description: New description for the issue (optional)
+                priority: New priority for the issue (optional)
+                assignee: New assignee for the issue (optional)
+                labels: New labels for the issue (optional)
+                story_points: New story points for the issue (optional)
+                custom_fields: Additional custom fields to update (optional)
+                
+            Returns:
+                Dictionary with updated issue details or an error message
+            """
+            print(f"Updating issue {issue_key}", file=sys.stderr)
+            try:
+                issue = self.jira.issue(issue_key)
+                
+                # Prepare the fields to be updated
+                update_fields = {}
+                
+                if summary:
+                    update_fields["summary"] = summary
+                if description:
+                    update_fields["description"] = description
+                if priority:
+                    update_fields["priority"] = {"name": priority}
+                if assignee:
+                    update_fields["assignee"] = {"name": assignee}
+                if labels:
+                    update_fields["labels"] = labels
+                if story_points:
+                    update_fields["customfield_10002"] = story_points  # Assuming story points field
+                
+                # Add custom fields
+                if custom_fields:
+                    for field, value in custom_fields.items():
+                        update_fields[field] = value
+                
+                # Update the issue
+                issue.update(fields=update_fields)
+                
+                print(f"Successfully updated issue {issue_key}", file=sys.stderr)
+                return {
+                    "key": issue.key,
+                    "summary": issue.fields.summary,
+                    "description": issue.fields.description,
+                    "priority": issue.fields.priority.name,
+                    "assignee": getattr(issue.fields.assignee, "displayName", "Unassigned"),
+                    "labels": issue.fields.labels,
+                    "story_points": getattr(issue.fields, "customfield_10002", None),  # Assuming story points field
+                    "message": f"Successfully updated issue {issue_key}"
+                }
+                
+            except Exception as e:
+                print(f"Error updating issue {issue_key}: {str(e)}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
+                return {"error": str(e)}
+
         
         @self.mcp.tool()
         async def update_issue_status(issue_key: str, transition_to: str) -> Dict[str, Any]:
